@@ -38,6 +38,7 @@ export default async function HomePage() {
       heroImages={settings.heroImages}
       storeName={settings.storeName}
       storeTagline={settings.storeTagline}
+      storeTaglineEN={settings.storeTaglineEN ?? undefined}
       logoUrl={settings.logoUrl}
     />
   )

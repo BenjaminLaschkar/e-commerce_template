@@ -28,6 +28,7 @@ interface Props {
   heroImages?: string[]
   storeName?: string
   storeTagline?: string
+  storeTaglineEN?: string
   logoUrl?: string | null
 }
 
@@ -90,10 +91,15 @@ export default function CatalogClient({
   heroImages = [],
   storeName = 'Boutique',
   storeTagline,
+  storeTaglineEN,
   logoUrl,
 }: Props) {
-  const { t } = useLang()
+  const { t, lang } = useLang()
   const images = heroImages.length > 0 ? heroImages : PLACEHOLDER_HERO
+
+  const displayTagline = lang === 'en'
+    ? (storeTaglineEN || t.tagline)
+    : (storeTagline || t.tagline)
 
   const TRUST_BADGES = [
     { icon: Truck,     label: t.trust_ship, sub: t.trust_ship_sub },
@@ -116,7 +122,7 @@ export default function CatalogClient({
           >
             <Badge className="bg-white/20 text-white border-0 mb-4 text-xs px-3 py-1">{t.hero_badge}</Badge>
             <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold leading-tight mb-4">
-              {storeTagline || t.tagline}
+              {displayTagline}
             </h1>
             <p className="text-indigo-200 text-base sm:text-lg mb-8 max-w-md mx-auto md:mx-0">{t.sub_tagline}</p>
             <a href="#catalogue">

@@ -39,6 +39,7 @@ export const translations = {
     view_product: 'Voir le produit',
     unavailable: 'Indisponible',
     // Pages légales & livraison
+    about_title:      'Qui sommes-nous ?',
     cgv_title:        'Conditions Générales de Vente',
     faq_title:        'FAQ',
     faq_subtitle:     'Questions fréquemment posées',
@@ -92,6 +93,7 @@ export const translations = {
     view_product: 'View product',
     unavailable: 'Unavailable',
     // Legal & delivery pages
+    about_title:      'About us',
     cgv_title:        'Terms & Conditions',
     faq_title:        'FAQ',
     faq_subtitle:     'Frequently asked questions',
