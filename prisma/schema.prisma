@@ -1,0 +1,283 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// ADMIN
+// ============================================
+model Admin {
+  id        String     @id @default(cuid())
+  email     String     @unique
+  password  String
+  name      String     @default("Admin")
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  logs      AdminLog[]
+}
+
+// ============================================
+// PRODUITS
+// ============================================
+model Product {
+  id           String       @id @default(cuid())
+  name         String
+  slug         String       @unique
+  description  String       @db.Text
+  shortDesc    String?
+  price        Float
+  comparePrice Float?
+  images       String[]
+  stock        Int          @default(0)
+  features     String[]
+  isActive     Boolean      @default(true)
+  weight       Float?
+  sku          String?      @unique
+  cartItems    CartItem[]
+  orderItems   OrderItem[]
+  funnelEvents FunnelEvent[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([slug])
+  @@index([isActive])
+}
+
+// ============================================
+// CLIENTS
+// ============================================
+model Customer {
+  id           String        @id @default(cuid())
+  email        String        @unique
+  firstName    String?
+  lastName     String?
+  phone        String?
+  address      String?
+  city         String?
+  zipCode      String?
+  country      String        @default("FR")
+  orders       Order[]
+  carts        Cart[]
+  emailLogs    EmailLog[]
+  funnelEvents FunnelEvent[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([email])
+}
+
+// ============================================
+// PANIER
+// ============================================
+model Cart {
+  id                String     @id @default(cuid())
+  sessionId         String     @unique
+  customerId        String?
+  customer          Customer?  @relation(fields: [customerId], references: [id])
+  items             CartItem[]
+  isAbandoned       Boolean    @default(false)
+  abandonEmail1Sent Boolean    @default(false)
+  abandonEmail2Sent Boolean    @default(false)
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  @@index([sessionId])
+  @@index([isAbandoned])
+  @@index([customerId])
+}
+
+model CartItem {
+  id        String   @id @default(cuid())
+  cartId    String
+  cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  quantity  Int      @default(1)
+  price     Float
+  createdAt DateTime @default(now())
+
+  @@unique([cartId, productId])
+}
+
+// ============================================
+// COMMANDES
+// ============================================
+model Order {
+  id              String      @id @default(cuid())
+  orderNumber     String      @unique
+  customerId      String
+  customer        Customer    @relation(fields: [customerId], references: [id])
+  items           OrderItem[]
+  subtotal        Float
+  shipping        Float       @default(0)
+  total           Float
+  status          OrderStatus @default(PENDING)
+  stripePaymentId String?
+  stripeSessionId String?
+  trackingNumber  String?
+  notes           String?
+  shippingAddress Json?
+  ipAddress       String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  emailLogs       EmailLog[]
+
+  @@index([status])
+  @@index([customerId])
+  @@index([createdAt])
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int
+  price     Float
+  name      String
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+// ============================================
+// TRACKING FUNNEL
+// ============================================
+model FunnelEvent {
+  id         String    @id @default(cuid())
+  sessionId  String
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id])
+  productId  String?
+  product    Product?  @relation(fields: [productId], references: [id])
+  event      EventType
+  metadata   Json?
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime  @default(now())
+
+  @@index([event])
+  @@index([sessionId])
+  @@index([productId])
+  @@index([createdAt])
+}
+
+enum EventType {
+  PAGE_VIEW
+  PRODUCT_VIEW
+  ADD_TO_CART
+  CHECKOUT_START
+  PAYMENT_SUCCESS
+  PAYMENT_FAILED
+  CART_ABANDON
+  UPSELL_VIEW
+  UPSELL_ACCEPT
+  UPSELL_DECLINE
+}
+
+// ============================================
+// EMAILS
+// ============================================
+model EmailLog {
+  id         String    @id @default(cuid())
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id])
+  orderId    String?
+  order      Order?    @relation(fields: [orderId], references: [id])
+  type       EmailType
+  subject    String
+  to         String
+  status     String    @default("sent")
+  error      String?
+  sentAt     DateTime  @default(now())
+
+  @@index([customerId])
+  @@index([type])
+  @@index([sentAt])
+}
+
+enum EmailType {
+  ORDER_CONFIRMATION
+  ORDER_SHIPPED
+  ORDER_DELIVERED
+  ORDER_CANCELLED
+  CART_ABANDON_1
+  CART_ABANDON_2
+  PROMO
+  UPSELL
+  CAMPAIGN
+}
+
+// ============================================
+// SITE SETTINGS (singleton row, id = "singleton")
+// ============================================
+model SiteSettings {
+  id String @id @default("singleton")
+
+  // Store info
+  storeName     String @default("Boutique")
+  storeTagline  String @default("Des produits qui font la différence")
+  aboutContent  String @default("") @db.Text
+
+  // Design
+  primaryColor String   @default("#4f46e5")
+  fontFamily   String   @default("Inter")
+  heroImages   String[] // Gallery images for the hero carousel
+  logoUrl      String?
+
+  // Stripe
+  stripePublicKey     String?
+  stripeSecretKey     String?
+  stripeWebhookSecret String?
+
+  // Shipping
+  freeShippingThreshold Float    @default(0)
+  shippingRules         Json     @default("[]")
+  blockedCountries      String[] @default([])
+
+  // Legal pages content (Markdown / rich text)
+  cgvContent      String @default("") @db.Text
+  faqContent      String @default("") @db.Text
+  deliveryContent String @default("") @db.Text
+
+  // English translations (auto-translate or manual)
+  storeNameEN       String? @db.Text
+  storeTaglineEN    String? @db.Text
+  aboutContentEN    String? @db.Text
+  cgvContentEN      String? @db.Text
+  faqContentEN      String? @db.Text
+  deliveryContentEN String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================
+// LOGS ADMIN
+// ============================================
+model AdminLog {
+  id        String   @id @default(cuid())
+  adminId   String
+  admin     Admin    @relation(fields: [adminId], references: [id])
+  action    String
+  details   String?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([adminId])
+  @@index([createdAt])
+}
