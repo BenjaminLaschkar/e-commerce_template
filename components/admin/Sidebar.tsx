@@ -63,6 +63,7 @@ export default function AdminSidebar() {
       <nav className="flex-1 px-3 py-4 space-y-1">
         {navItems.map(({ href, icon: Icon, label }) => {
           const isActive = pathname === href || (href !== '/admin' && pathname.startsWith(href))
+          const isDashboard = href === '/admin'
           return (
             <Link
               key={href}
@@ -71,6 +72,8 @@ export default function AdminSidebar() {
                 'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
                 isActive
                   ? 'bg-indigo-600 text-white'
+                  : isDashboard
+                  ? 'text-white/80 hover:bg-slate-800 hover:text-white border border-slate-700/60'
                   : 'text-slate-400 hover:bg-slate-800 hover:text-white'
               )}
             >

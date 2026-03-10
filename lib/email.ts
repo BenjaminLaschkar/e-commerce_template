@@ -78,6 +78,24 @@ async function sendEmail({
 }
 
 // ============================================
+// TEMPLATE HELPERS
+// ============================================
+
+/** Load a custom template from DB. Returns null if not found. */
+async function getEmailTemplate(type: string) {
+  try {
+    return await prisma.emailTemplate.findUnique({ where: { id: type } })
+  } catch {
+    return null
+  }
+}
+
+/** Replace {variable} placeholders in a template string */
+function renderVars(template: string, vars: Record<string, string>): string {
+  return template.replace(/\{(\w+)\}/g, (_, key) => vars[key] ?? `{${key}}`)
+}
+
+// ============================================
 // TEMPLATES HTML
 // ============================================
 function baseTemplate(content: string, title: string): string {
@@ -135,6 +153,14 @@ export async function sendOrderConfirmation(order: {
   items: Array<{ name: string; quantity: number; price: number }>
   total: number
 }) {
+  const tpl = await getEmailTemplate('ORDER_CONFIRMATION')
+
+  const vars = {
+    firstName: order.customer.firstName || 'cher client',
+    orderNumber: order.orderNumber,
+    total: order.total.toFixed(2) + ' €',
+  }
+
   const itemsHtml = order.items
     .map(
       (item) => `
@@ -145,11 +171,10 @@ export async function sendOrderConfirmation(order: {
     )
     .join('')
 
-  const html = baseTemplate(
-    `
+  const defaultBody = `
     <div class="badge">✅ Commande confirmée</div>
     <h2 style="font-size: 20px; font-weight: 700; margin-bottom: 8px;">Merci pour votre commande !</h2>
-    <p>Bonjour ${order.customer.firstName || 'cher client'},</p>
+    <p>Bonjour ${vars.firstName},</p>
     <p>Votre commande <strong>#${order.orderNumber}</strong> a bien été reçue et est en cours de traitement.</p>
     
     <div class="order-box">
@@ -165,13 +190,18 @@ export async function sendOrderConfirmation(order: {
     <div style="text-align: center;">
       <a href="${APP_URL}/confirmation?order=${order.orderNumber}" class="cta-button">Voir ma commande →</a>
     </div>
-  `,
-    'Confirmation de commande'
-  )
+  `
+
+  const body = tpl?.bodyFr ? renderVars(tpl.bodyFr, { ...vars, items: itemsHtml }) : defaultBody
+  const subject = tpl?.subjectFr
+    ? renderVars(tpl.subjectFr, vars)
+    : `✅ Commande confirmée #${order.orderNumber}`
+
+  const html = baseTemplate(body, 'Confirmation de commande')
 
   return sendEmail({
     to: order.customer.email,
-    subject: `✅ Commande confirmée #${order.orderNumber}`,
+    subject,
     html,
     customerId: undefined,
     orderId: order.id,
@@ -185,37 +215,30 @@ export async function sendOrderShipped(order: {
   customer: { email: string; firstName?: string | null }
   trackingNumber?: string | null
 }) {
-  const html = baseTemplate(
-    `
+  const tpl = await getEmailTemplate('ORDER_SHIPPED')
+  const vars = {
+    firstName: order.customer.firstName || 'cher client',
+    orderNumber: order.orderNumber,
+    trackingNumber: order.trackingNumber || '',
+  }
+
+  const defaultBody = `
     <div class="badge" style="background: #dbeafe; color: #1d4ed8;">📦 Expédiée</div>
     <h2 style="font-size: 20px; font-weight: 700; margin-bottom: 8px;">Votre commande est en route !</h2>
-    <p>Bonjour ${order.customer.firstName || 'cher client'},</p>
+    <p>Bonjour ${vars.firstName},</p>
     <p>Votre commande <strong>#${order.orderNumber}</strong> a été expédiée et est en route vers vous.</p>
-    
-    ${
-      order.trackingNumber
-        ? `<div class="order-box">
-          <p style="margin: 0;"><strong>Numéro de suivi :</strong> ${order.trackingNumber}</p>
-        </div>`
-        : ''
-    }
-    
+    ${order.trackingNumber ? `<div class="order-box"><p style="margin: 0;"><strong>Numéro de suivi :</strong> ${order.trackingNumber}</p></div>` : ''}
     <p>Vous devriez recevoir votre colis dans les prochains jours ouvrés.</p>
-    
-    <div style="text-align: center;">
-      <a href="${APP_URL}/confirmation?order=${order.orderNumber}" class="cta-button">Suivre ma commande →</a>
-    </div>
-  `,
-    'Commande expédiée'
-  )
+    <div style="text-align: center;"><a href="${APP_URL}/confirmation?order=${order.orderNumber}" class="cta-button">Suivre ma commande →</a></div>
+  `
 
-  return sendEmail({
-    to: order.customer.email,
-    subject: `📦 Votre commande #${order.orderNumber} est expédiée !`,
-    html,
-    orderId: order.id,
-    type: 'ORDER_SHIPPED',
-  })
+  const body = tpl?.bodyFr ? renderVars(tpl.bodyFr, vars) : defaultBody
+  const subject = tpl?.subjectFr
+    ? renderVars(tpl.subjectFr, vars)
+    : `📦 Votre commande #${order.orderNumber} est expédiée !`
+
+  const html = baseTemplate(body, 'Commande expédiée')
+  return sendEmail({ to: order.customer.email, subject, html, orderId: order.id, type: 'ORDER_SHIPPED' })
 }
 
 export async function sendOrderDelivered(order: {
@@ -223,28 +246,25 @@ export async function sendOrderDelivered(order: {
   orderNumber: string
   customer: { email: string; firstName?: string | null }
 }) {
-  const html = baseTemplate(
-    `
+  const tpl = await getEmailTemplate('ORDER_DELIVERED')
+  const vars = { firstName: order.customer.firstName || 'cher client', orderNumber: order.orderNumber }
+
+  const defaultBody = `
     <div class="badge" style="background: #dcfce7; color: #15803d;">✅ Livrée</div>
     <h2 style="font-size: 20px; font-weight: 700; margin-bottom: 8px;">Votre colis est arrivé !</h2>
-    <p>Bonjour ${order.customer.firstName || 'cher client'},</p>
+    <p>Bonjour ${vars.firstName},</p>
     <p>Votre commande <strong>#${order.orderNumber}</strong> a été livrée avec succès.</p>
     <p>Nous espérons que vous êtes satisfait(e) de votre achat. N'hésitez pas à nous laisser un avis !</p>
-    
-    <div style="text-align: center;">
-      <a href="${APP_URL}" class="cta-button">🛍️ Continuer mes achats</a>
-    </div>
-  `,
-    'Commande livrée'
-  )
+    <div style="text-align: center;"><a href="${APP_URL}" class="cta-button">🛍️ Continuer mes achats</a></div>
+  `
 
-  return sendEmail({
-    to: order.customer.email,
-    subject: `✅ Votre commande #${order.orderNumber} a été livrée !`,
-    html,
-    orderId: order.id,
-    type: 'ORDER_DELIVERED',
-  })
+  const body = tpl?.bodyFr ? renderVars(tpl.bodyFr, vars) : defaultBody
+  const subject = tpl?.subjectFr
+    ? renderVars(tpl.subjectFr, vars)
+    : `✅ Votre commande #${order.orderNumber} a été livrée !`
+
+  const html = baseTemplate(body, 'Commande livrée')
+  return sendEmail({ to: order.customer.email, subject, html, orderId: order.id, type: 'ORDER_DELIVERED' })
 }
 
 // ============================================
@@ -255,47 +275,29 @@ export async function sendAbandonCart1(cart: {
   customer: { id: string; email: string; firstName?: string | null }
   items: Array<{ product: { name: string; price: number; images: string[] }; quantity: number }>
 }) {
-  const firstItem = cart.items[0]
   const total = cart.items.reduce((sum, item) => sum + item.product.price * item.quantity, 0)
+  const tpl = await getEmailTemplate('CART_ABANDON_1')
+  const vars = { firstName: cart.customer.firstName || 'cher client', total: total.toFixed(2) + ' €' }
+  const itemsHtml = cart.items.map((item) =>
+    `<div class="order-row"><span>${item.product.name} × ${item.quantity}</span><span>${(item.product.price * item.quantity).toFixed(2)} €</span></div>`
+  ).join('')
 
-  const html = baseTemplate(
-    `
+  const defaultBody = `
     <h2 style="font-size: 20px; font-weight: 700; margin-bottom: 8px;">Vous avez oublié quelque chose... 🛒</h2>
-    <p>Bonjour ${cart.customer.firstName || 'cher client'},</p>
+    <p>Bonjour ${vars.firstName},</p>
     <p>Vous avez laissé des articles dans votre panier. Votre sélection vous attend !</p>
-    
-    <div class="order-box">
-      ${cart.items
-        .map(
-          (item) => `
-        <div class="order-row">
-          <span>${item.product.name} × ${item.quantity}</span>
-          <span>${(item.product.price * item.quantity).toFixed(2)} €</span>
-        </div>`
-        )
-        .join('')}
-      <div class="order-row">
-        <span>Total</span>
-        <span>${total.toFixed(2)} €</span>
-      </div>
-    </div>
-    
+    <div class="order-box">${itemsHtml}<div class="order-row"><span>Total</span><span>${total.toFixed(2)} €</span></div></div>
     <p>⚡ Stock limité — ne tardez pas trop !</p>
-    
-    <div style="text-align: center;">
-      <a href="${APP_URL}/cart" class="cta-button">Reprendre mon panier →</a>
-    </div>
-  `,
-    'Votre panier vous attend'
-  )
+    <div style="text-align: center;"><a href="${APP_URL}/cart" class="cta-button">Reprendre mon panier →</a></div>
+  `
 
-  return sendEmail({
-    to: cart.customer.email,
-    subject: `🛒 Vous avez oublié votre panier (${total.toFixed(2)} €)`,
-    html,
-    customerId: cart.customer.id,
-    type: 'CART_ABANDON_1',
-  })
+  const body = tpl?.bodyFr ? renderVars(tpl.bodyFr, { ...vars, items: itemsHtml }) : defaultBody
+  const subject = tpl?.subjectFr
+    ? renderVars(tpl.subjectFr, vars)
+    : `🛒 Vous avez oublié votre panier (${total.toFixed(2)} €)`
+
+  const html = baseTemplate(body, 'Votre panier vous attend')
+  return sendEmail({ to: cart.customer.email, subject, html, customerId: cart.customer.id, type: 'CART_ABANDON_1' })
 }
 
 export async function sendAbandonCart2(cart: {
@@ -304,50 +306,29 @@ export async function sendAbandonCart2(cart: {
   items: Array<{ product: { name: string; price: number; images: string[] }; quantity: number }>
 }) {
   const total = cart.items.reduce((sum, item) => sum + item.product.price * item.quantity, 0)
+  const tpl = await getEmailTemplate('CART_ABANDON_2')
+  const vars = { firstName: cart.customer.firstName || 'cher client', total: total.toFixed(2) + ' €' }
+  const itemsHtml = cart.items.map((item) =>
+    `<div class="order-row"><span>${item.product.name} × ${item.quantity}</span><span>${(item.product.price * item.quantity).toFixed(2)} €</span></div>`
+  ).join('')
 
-  const html = baseTemplate(
-    `
+  const defaultBody = `
     <h2 style="font-size: 20px; font-weight: 700; margin-bottom: 8px;">Dernière chance ! 🔥</h2>
-    <p>Bonjour ${cart.customer.firstName || 'cher client'},</p>
+    <p>Bonjour ${vars.firstName},</p>
     <p>Votre panier est toujours disponible, mais les stocks sont limités.</p>
-    
-    <div class="order-box">
-      ${cart.items
-        .map(
-          (item) => `
-        <div class="order-row">
-          <span>${item.product.name} × ${item.quantity}</span>
-          <span>${(item.product.price * item.quantity).toFixed(2)} €</span>
-        </div>`
-        )
-        .join('')}
-      <div class="order-row">
-        <span>Total</span>
-        <span>${total.toFixed(2)} €</span>
-      </div>
-    </div>
-    
+    <div class="order-box">${itemsHtml}<div class="order-row"><span>Total</span><span>${total.toFixed(2)} €</span></div></div>
     <p>💡 <strong>Offre spéciale :</strong> Commandez maintenant et bénéficiez de nos garanties :</p>
-    <ul style="color: #475569; margin: 12px 0 12px 20px; line-height: 1.8;">
-      <li>✅ Paiement 100% sécurisé</li>
-      <li>✅ Satisfaction garantie</li>
-      <li>✅ Support client réactif</li>
-    </ul>
-    
-    <div style="text-align: center;">
-      <a href="${APP_URL}/cart" class="cta-button">🛒 Finaliser ma commande</a>
-    </div>
-  `,
-    'Dernière chance pour votre panier'
-  )
+    <ul style="color: #475569; margin: 12px 0 12px 20px; line-height: 1.8;"><li>✅ Paiement 100% sécurisé</li><li>✅ Satisfaction garantie</li><li>✅ Support client réactif</li></ul>
+    <div style="text-align: center;"><a href="${APP_URL}/cart" class="cta-button">🛒 Finaliser ma commande</a></div>
+  `
 
-  return sendEmail({
-    to: cart.customer.email,
-    subject: `🔥 Dernière chance — votre panier expire bientôt`,
-    html,
-    customerId: cart.customer.id,
-    type: 'CART_ABANDON_2',
-  })
+  const body = tpl?.bodyFr ? renderVars(tpl.bodyFr, { ...vars, items: itemsHtml }) : defaultBody
+  const subject = tpl?.subjectFr
+    ? renderVars(tpl.subjectFr, vars)
+    : `🔥 Dernière chance — votre panier expire bientôt`
+
+  const html = baseTemplate(body, 'Dernière chance pour votre panier')
+  return sendEmail({ to: cart.customer.email, subject, html, customerId: cart.customer.id, type: 'CART_ABANDON_2' })
 }
 
 // ============================================

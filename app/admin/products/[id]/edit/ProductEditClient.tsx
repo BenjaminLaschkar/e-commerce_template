@@ -9,8 +9,14 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/components/ui/use-toast'
-import { Plus, Trash2, ArrowLeft, Upload, Images } from 'lucide-react'
+import { Plus, Trash2, ArrowLeft, Upload, Images, Zap } from 'lucide-react'
 import MediaPicker from '@/components/admin/MediaPicker'
+
+interface ProductRef {
+  id: string
+  name: string
+  slug: string
+}
 
 interface Product {
   id: string
@@ -24,9 +30,21 @@ interface Product {
   sku: string | null
   features: string[]
   isActive: boolean
+  // Upsell
+  upsellActive: boolean
+  upsellPrice: number | null
+  upsellMessage: string | null
+  upsellSendEmail: boolean
+  upsellTriggerIds: string[]
 }
 
-export default function ProductEditClient({ product }: { product: Product }) {
+export default function ProductEditClient({
+  product,
+  allProducts,
+}: {
+  product: Product
+  allProducts: ProductRef[]
+}) {
   const router = useRouter()
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
@@ -44,6 +62,13 @@ export default function ProductEditClient({ product }: { product: Product }) {
   const [features, setFeatures] = useState<string[]>(
     (product.features ?? []).length > 0 ? (product.features ?? []) : [''],
   )
+  const [upsell, setUpsell] = useState({
+    upsellActive: product.upsellActive,
+    upsellPrice: product.upsellPrice?.toString() ?? '',
+    upsellMessage: product.upsellMessage ?? '',
+    upsellSendEmail: product.upsellSendEmail,
+    upsellTriggerIds: product.upsellTriggerIds ?? [],
+  })
   const [newImageUrl, setNewImageUrl] = useState('')
   const [pickerOpen, setPickerOpen] = useState(false)
   const uploadRef = useRef<HTMLInputElement>(null)
@@ -51,7 +76,7 @@ export default function ProductEditClient({ product }: { product: Product }) {
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? [])
     if (!files.length) return
-    const toastId = toast({ title: 'Upload en cours...' })
+    const toastRef = toast({ title: 'Upload en cours...' })
     try {
       for (const file of files) {
         const fd = new FormData()
@@ -68,7 +93,7 @@ export default function ProductEditClient({ product }: { product: Product }) {
     } finally {
       if (uploadRef.current) uploadRef.current.value = ''
     }
-    void toastId
+    void toastRef
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -76,6 +101,23 @@ export default function ProductEditClient({ product }: { product: Product }) {
     setForm((f) => ({
       ...f,
       [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value,
+    }))
+  }
+
+  const handleUpsellChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value, type } = e.target as HTMLInputElement
+    setUpsell((u) => ({
+      ...u,
+      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value,
+    }))
+  }
+
+  const toggleTrigger = (id: string) => {
+    setUpsell((u) => ({
+      ...u,
+      upsellTriggerIds: u.upsellTriggerIds.includes(id)
+        ? u.upsellTriggerIds.filter((t) => t !== id)
+        : [...u.upsellTriggerIds, id],
     }))
   }
 
@@ -110,6 +152,12 @@ export default function ProductEditClient({ product }: { product: Product }) {
       images,
       features: features.filter((f) => f.trim()),
       isActive: form.isActive,
+      // Upsell
+      upsellActive: upsell.upsellActive,
+      upsellPrice: upsell.upsellPrice ? parseFloat(upsell.upsellPrice) : null,
+      upsellMessage: upsell.upsellMessage || null,
+      upsellSendEmail: upsell.upsellSendEmail,
+      upsellTriggerIds: upsell.upsellTriggerIds,
     }
 
     try {
@@ -126,12 +174,16 @@ export default function ProductEditClient({ product }: { product: Product }) {
 
       toast({ title: '✅ Produit mis à jour avec succès' })
       router.push('/admin/products')
-    } catch (err: any) {
-      toast({ title: 'Erreur', description: err.message, variant: 'destructive' })
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erreur inconnue'
+      toast({ title: 'Erreur', description: msg, variant: 'destructive' })
     } finally {
       setLoading(false)
     }
   }
+
+  // Other products (exclude self) for the trigger list
+  const otherProducts = allProducts.filter((p) => p.id !== product.id)
 
   return (
     <div className="flex h-screen bg-gray-50">
@@ -206,7 +258,6 @@ export default function ProductEditClient({ product }: { product: Product }) {
             <Card>
               <CardHeader><CardTitle className="text-base">Images</CardTitle></CardHeader>
               <CardContent className="space-y-3">
-                {/* Add by URL */}
                 <div className="flex gap-2">
                   <Input
                     placeholder="https://example.com/image.jpg"
@@ -218,7 +269,6 @@ export default function ProductEditClient({ product }: { product: Product }) {
                     <Plus className="w-4 h-4" />
                   </Button>
                 </div>
-                {/* Upload + Gallery */}
                 <div className="flex gap-2">
                   <input ref={uploadRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFileUpload} />
                   <Button type="button" variant="outline" size="sm" onClick={() => uploadRef.current?.click()} className="gap-1.5">
@@ -272,6 +322,127 @@ export default function ProductEditClient({ product }: { product: Product }) {
                   <Plus className="w-4 h-4 mr-2" />
                   Ajouter une caractéristique
                 </Button>
+              </CardContent>
+            </Card>
+
+            {/* ── UPSELL ── */}
+            <Card className="border-indigo-200">
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-indigo-500" />
+                  Configuration Upsell
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                {/* Active toggle */}
+                <div className="flex items-center gap-3">
+                  <input
+                    id="upsellActive"
+                    name="upsellActive"
+                    type="checkbox"
+                    checked={upsell.upsellActive}
+                    onChange={handleUpsellChange}
+                    className="h-4 w-4 accent-indigo-600"
+                  />
+                  <Label htmlFor="upsellActive" className="cursor-pointer font-medium">
+                    Activer cet article comme offre upsell
+                  </Label>
+                </div>
+
+                {upsell.upsellActive && (
+                  <div className="space-y-4 pl-4 border-l-2 border-indigo-100">
+                    {/* Upsell price */}
+                    <div>
+                      <Label htmlFor="upsellPrice">Prix upsell (€)</Label>
+                      <p className="text-xs text-gray-400 mb-1">
+                        Prix spécial affiché sur la page upsell. Laissez vide pour utiliser le prix normal.
+                      </p>
+                      <Input
+                        id="upsellPrice"
+                        name="upsellPrice"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder={form.price}
+                        value={upsell.upsellPrice}
+                        onChange={handleUpsellChange}
+                        className="max-w-xs"
+                      />
+                    </div>
+
+                    {/* Upsell message */}
+                    <div>
+                      <Label htmlFor="upsellMessage">Message upsell</Label>
+                      <p className="text-xs text-gray-400 mb-1">
+                        Texte d'accroche affiché sur la page upsell (ex: "Offre exclusive réservée aux nouveaux clients").
+                      </p>
+                      <Textarea
+                        id="upsellMessage"
+                        name="upsellMessage"
+                        value={upsell.upsellMessage}
+                        onChange={handleUpsellChange}
+                        rows={3}
+                        placeholder="Complétez votre achat avec cette offre exclusive..."
+                      />
+                    </div>
+
+                    {/* Send email */}
+                    <div className="flex items-start gap-3">
+                      <input
+                        id="upsellSendEmail"
+                        name="upsellSendEmail"
+                        type="checkbox"
+                        checked={upsell.upsellSendEmail}
+                        onChange={handleUpsellChange}
+                        className="h-4 w-4 accent-indigo-600 mt-0.5"
+                      />
+                      <div>
+                        <Label htmlFor="upsellSendEmail" className="cursor-pointer font-medium">
+                          Envoyer un e-mail automatique pour cet upsell
+                        </Label>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          Un e-mail de type "UPSELL" est envoyé au client quand il accepte cette offre.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Trigger products */}
+                    <div>
+                      <Label>Produits déclencheurs</Label>
+                      <p className="text-xs text-gray-400 mb-2">
+                        Cochez les produits dont l'achat doit afficher cette offre upsell en page de confirmation.
+                      </p>
+                      {otherProducts.length === 0 ? (
+                        <p className="text-sm text-gray-400 italic">Aucun autre produit disponible.</p>
+                      ) : (
+                        <div className="max-h-48 overflow-y-auto border rounded-lg divide-y">
+                          {otherProducts.map((p) => (
+                            <label
+                              key={p.id}
+                              className="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 cursor-pointer"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={upsell.upsellTriggerIds.includes(p.id)}
+                                onChange={() => toggleTrigger(p.id)}
+                                className="h-4 w-4 accent-indigo-600"
+                              />
+                              <div>
+                                <span className="text-sm font-medium text-gray-800">{p.name}</span>
+                                <span className="ml-2 text-xs text-gray-400 font-mono">{p.slug}</span>
+                              </div>
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                      {upsell.upsellTriggerIds.length > 0 && (
+                        <p className="text-xs text-indigo-600 mt-1">
+                          {upsell.upsellTriggerIds.length} produit(s) sélectionné(s)
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 

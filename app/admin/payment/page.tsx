@@ -27,6 +27,9 @@ export default async function AdminPaymentPage() {
       initialCgvContentEN={settings.cgvContentEN ?? ''}
       initialFaqContentEN={settings.faqContentEN ?? ''}
       initialDeliveryContentEN={settings.deliveryContentEN ?? ''}
+      initialAnnounceBannerFr={settings.announceBannerFr ?? ''}
+      initialAnnounceBannerEn={settings.announceBannerEn ?? ''}
+      initialCheckoutDistractionFree={settings.checkoutDistractionFree ?? false}
     />
   )
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { CheckCircle2, Package, Mail, ArrowRight, ShoppingBag } from 'lucide-react'
@@ -14,32 +14,85 @@ interface Order {
   total: number
   status: string
   customer: { firstName?: string; email: string }
-  items: Array<{ name: string; quantity: number; price: number }>
+  items: Array<{ name: string; quantity: number; price: number; productId?: string }>
+}
+
+interface UpsellProduct {
+  id: string
+  name: string
+  upsellPrice: number | null
+  price: number
+  comparePrice: number | null
+  upsellMessage: string | null
 }
 
 export default function ConfirmationPage() {
   const searchParams = useSearchParams()
   const orderNumber = searchParams.get('order')
-  const sessionId = searchParams.get('session_id') // Stripe session
+  const paymentIntent = searchParams.get('payment_intent')
+  const redirectStatus = searchParams.get('redirect_status')
   const { clearCart } = useCart()
   const [order, setOrder] = useState<Order | null>(null)
+  const [upsell, setUpsell] = useState<UpsellProduct | null>(null)
   const [showUpsell, setShowUpsell] = useState(false)
+  const emailSentRef = useRef(false)
+
+  // When Stripe redirects back with redirect_status=succeeded, trigger the
+  // confirmation email server-side (idempotent — safe to call multiple times)
+  useEffect(() => {
+    if (redirectStatus === 'succeeded' && orderNumber && !emailSentRef.current) {
+      emailSentRef.current = true
+      fetch('/api/orders/confirm-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderNumber, paymentIntentId: paymentIntent ?? undefined }),
+      }).catch(() => {})
+    }
+  }, [redirectStatus, orderNumber, paymentIntent])
 
   useEffect(() => {
     clearCart()
     if (orderNumber) {
       fetch(`/api/orders?orderNumber=${orderNumber}`)
         .then((r) => r.json())
-        .then((data) => {
+        .then(async (data) => {
           if (data.order) {
-            setOrder(data.order)
-            // Show upsell after 2s
-            setTimeout(() => setShowUpsell(true), 2000)
+            const fetchedOrder: Order = data.order
+            setOrder(fetchedOrder)
+
+            // Fetch upsell based on purchased product IDs
+            const productIds = (fetchedOrder.items ?? [])
+              .map((i) => i.productId)
+              .filter(Boolean)
+              .join(',')
+
+            if (productIds) {
+              const upsellRes = await fetch(`/api/upsell?productIds=${encodeURIComponent(productIds)}`)
+              const upsellData = await upsellRes.json()
+              if (upsellData.upsell) {
+                setUpsell(upsellData.upsell)
+                setTimeout(() => setShowUpsell(true), 2000)
+              }
+            }
           }
         })
         .catch(() => {})
     }
   }, [orderNumber])
+
+  const productIdsParam = order?.items
+    .map((i) => i.productId)
+    .filter(Boolean)
+    .join(',') ?? ''
+
+  const upsellDisplayPrice = upsell
+    ? (upsell.upsellPrice ?? upsell.price)
+    : 0
+  const upsellOriginalPrice = upsell?.comparePrice ?? upsell?.price ?? 0
+  const upsellDiscount =
+    upsellOriginalPrice > upsellDisplayPrice
+      ? Math.round(((upsellOriginalPrice - upsellDisplayPrice) / upsellOriginalPrice) * 100)
+      : null
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-green-50 to-white">
@@ -111,7 +164,7 @@ export default function ConfirmationPage() {
             {
               icon: ShoppingBag,
               title: 'Livraison',
-              desc: 'Vous recevrez un email dès l\'expédition',
+              desc: "Vous recevrez un email dès l'expédition",
               color: 'text-green-500 bg-green-50',
             },
           ].map(({ icon: Icon, title, desc, color }) => (
@@ -125,8 +178,8 @@ export default function ConfirmationPage() {
           ))}
         </div>
 
-        {/* Upsell */}
-        {showUpsell && (
+        {/* Upsell — shown only when an upsell is configured for the purchased products */}
+        {showUpsell && upsell && (
           <Card className="border-indigo-200 bg-gradient-to-r from-indigo-50 to-purple-50 mb-6 animate-in slide-in-from-bottom-4">
             <CardContent className="p-6">
               <div className="flex items-start gap-4">
@@ -135,21 +188,28 @@ export default function ConfirmationPage() {
                   <div className="inline-block bg-indigo-600 text-white text-xs font-bold px-2 py-1 rounded mb-2">
                     OFFRE EXCLUSIVE — 30 min seulement
                   </div>
-                  <h3 className="font-bold text-gray-900 mb-1">
-                    Complétez votre formation avec le coaching VIP
-                  </h3>
-                  <p className="text-sm text-gray-600 mb-3">
-                    Accédez à 3 sessions de coaching 1-to-1 + templates exclusifs.
-                    Offre spéciale réservée aux nouveaux clients.
-                  </p>
+                  <h3 className="font-bold text-gray-900 mb-1">{upsell.name}</h3>
+                  {upsell.upsellMessage && (
+                    <p className="text-sm text-gray-600 mb-3">{upsell.upsellMessage}</p>
+                  )}
                   <div className="flex items-center gap-3 mb-3">
-                    <span className="text-2xl font-bold text-indigo-600">97 €</span>
-                    <span className="text-gray-400 line-through text-lg">297 €</span>
-                    <span className="bg-red-100 text-red-700 text-xs font-bold px-2 py-1 rounded">-67%</span>
+                    <span className="text-2xl font-bold text-indigo-600">
+                      {formatPrice(upsellDisplayPrice)}
+                    </span>
+                    {upsellOriginalPrice > upsellDisplayPrice && (
+                      <span className="text-gray-400 line-through text-lg">
+                        {formatPrice(upsellOriginalPrice)}
+                      </span>
+                    )}
+                    {upsellDiscount !== null && (
+                      <span className="bg-red-100 text-red-700 text-xs font-bold px-2 py-1 rounded">
+                        -{upsellDiscount}%
+                      </span>
+                    )}
                   </div>
-                  <Link href="/upsell">
+                  <Link href={`/upsell?productIds=${encodeURIComponent(productIdsParam)}`}>
                     <Button className="w-full sm:w-auto">
-                      Oui, je veux le coaching VIP
+                      Oui, je veux cette offre
                       <ArrowRight className="w-4 h-4 ml-2" />
                     </Button>
                   </Link>
@@ -157,7 +217,7 @@ export default function ConfirmationPage() {
                     className="block text-xs text-gray-400 mt-2 hover:text-gray-600 transition-colors"
                     onClick={() => setShowUpsell(false)}
                   >
-                    Non merci, je decline cette offre
+                    Non merci, je décline cette offre
                   </button>
                 </div>
               </div>

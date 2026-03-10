@@ -4,7 +4,7 @@ import AdminMailingClient from '@/components/admin/MailingClient'
 export const revalidate = 0
 
 export default async function AdminMailingPage() {
-  const [customers, emailLogs, products] = await Promise.all([
+  const [customers, emailLogs, products, emailTemplates] = await Promise.all([
     prisma.customer.findMany({
       select: {
         id: true,
@@ -29,7 +29,8 @@ export default async function AdminMailingPage() {
       where: { isActive: true },
       select: { id: true, name: true, price: true },
     }),
+    prisma.emailTemplate.findMany(),
   ])
 
-  return <AdminMailingClient customers={customers} emailLogs={emailLogs} products={products} />
+  return <AdminMailingClient customers={customers} emailLogs={emailLogs} products={products} emailTemplates={emailTemplates} />
 }

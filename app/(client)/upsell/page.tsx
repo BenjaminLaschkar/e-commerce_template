@@ -1,19 +1,58 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import Link from 'next/link'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { Timer, CheckCircle, ArrowRight, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { formatPrice } from '@/lib/utils'
 import { useToast } from '@/components/ui/use-toast'
+import { useCart } from '@/components/client/CartProvider'
+
+interface UpsellProduct {
+  id: string
+  name: string
+  slug: string
+  images: string[]
+  price: number
+  comparePrice: number | null
+  upsellPrice: number | null
+  upsellMessage: string | null
+  features: string[]
+}
 
 export default function UpsellPage() {
-  const [timeLeft, setTimeLeft] = useState(30 * 60) // 30 minutes
-  const [isLoading, setIsLoading] = useState(false)
+  const searchParams = useSearchParams()
+  const productIds = searchParams.get('productIds') ?? ''
+  const router = useRouter()
+  const { addItem } = useCart()
   const { toast } = useToast()
 
-  // Countdown
+  const [upsell, setUpsell] = useState<UpsellProduct | null>(null)
+  const [fetching, setFetching] = useState(true)
+  const [timeLeft, setTimeLeft] = useState(30 * 60) // 30 minutes
+  const [isLoading, setIsLoading] = useState(false)
+
+  // Fetch the real upsell product
+  useEffect(() => {
+    if (!productIds) {
+      router.replace('/')
+      return
+    }
+    fetch(`/api/upsell?productIds=${encodeURIComponent(productIds)}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (!data.upsell) {
+          router.replace('/')
+        } else {
+          setUpsell(data.upsell)
+        }
+      })
+      .catch(() => router.replace('/'))
+      .finally(() => setFetching(false))
+  }, [productIds, router])
+
+  // Countdown + view tracking
   useEffect(() => {
     const sessionId = localStorage.getItem('session_id') || ''
     fetch('/api/tracking', {
@@ -32,6 +71,7 @@ export default function UpsellPage() {
   const seconds = timeLeft % 60
 
   const handleAccept = async () => {
+    if (!upsell) return
     setIsLoading(true)
     const sessionId = localStorage.getItem('session_id') || ''
     try {
@@ -40,11 +80,22 @@ export default function UpsellPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ event: 'UPSELL_ACCEPT', sessionId }),
       })
-      // Redirect to upsell checkout
-      window.location.href = '/checkout?upsell=1'
+      // Add the upsell product to cart at its special upsell price, then go to checkout
+      await addItem(
+        {
+          id: upsell.id,
+          name: upsell.name,
+          slug: upsell.slug,
+          price: upsell.upsellPrice ?? upsell.price,
+          comparePrice: upsell.comparePrice,
+          images: upsell.images,
+          stock: 999,
+        },
+        1
+      )
+      router.push('/checkout')
     } catch {
       toast({ title: 'Erreur', variant: 'destructive' })
-    } finally {
       setIsLoading(false)
     }
   }
@@ -56,17 +107,26 @@ export default function UpsellPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ event: 'UPSELL_DECLINE', sessionId }),
     }).catch(() => {})
-    window.location.href = '/'
+    router.push('/')
   }
 
-  const benefits = [
-    '3 sessions de coaching individuel (1h chacune)',
-    'Accès au groupe privé Telegram',
-    'Templates et ressources exclusives (valeur 197€)',
-    'Audit de votre stratégie marketing',
-    'Support prioritaire pendant 30 jours',
-    'Garantie satisfait ou remboursé 30 jours',
-  ]
+  // Loading spinner while fetching the product
+  if (fetching) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-slate-900 to-indigo-900 flex items-center justify-center">
+        <span className="animate-spin rounded-full h-10 w-10 border-4 border-white border-t-transparent" />
+      </div>
+    )
+  }
+
+  if (!upsell) return null
+
+  const displayPrice = upsell.upsellPrice ?? upsell.price
+  const originalPrice = upsell.comparePrice ?? upsell.price
+  const discount =
+    originalPrice > displayPrice
+      ? Math.round(((originalPrice - displayPrice) / originalPrice) * 100)
+      : null
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-900 to-indigo-900">
@@ -95,34 +155,54 @@ export default function UpsellPage() {
             </span>
           </div>
           <CardContent className="p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">
-              Pack Coaching VIP — Accélérateur de Résultats
-            </h2>
+            {/* Product image */}
+            {upsell.images?.[0] && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={upsell.images[0]}
+                alt={upsell.name}
+                className="w-full h-48 object-cover rounded-lg mb-4"
+              />
+            )}
 
-            <ul className="space-y-3 mb-6">
-              {benefits.map((benefit) => (
-                <li key={benefit} className="flex items-start gap-3">
-                  <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
-                  <span className="text-gray-700 text-sm">{benefit}</span>
-                </li>
-              ))}
-            </ul>
+            <h2 className="text-xl font-bold text-gray-900 mb-2">{upsell.name}</h2>
+
+            {upsell.upsellMessage && (
+              <p className="text-gray-600 text-sm mb-4">{upsell.upsellMessage}</p>
+            )}
+
+            {upsell.features && upsell.features.length > 0 && (
+              <ul className="space-y-3 mb-6">
+                {upsell.features.map((feature) => (
+                  <li key={feature} className="flex items-start gap-3">
+                    <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
+                    <span className="text-gray-700 text-sm">{feature}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
 
             <div className="bg-gray-50 rounded-lg p-4 mb-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-500 line-through">Valeur réelle: 297 €</p>
-                  <p className="text-3xl font-bold text-indigo-600">{formatPrice(97)}</p>
+                  {originalPrice > displayPrice && (
+                    <p className="text-sm text-gray-500 line-through">
+                      Valeur réelle: {formatPrice(originalPrice)}
+                    </p>
+                  )}
+                  <p className="text-3xl font-bold text-indigo-600">{formatPrice(displayPrice)}</p>
                   <p className="text-xs text-gray-500">Paiement unique, accès à vie</p>
                 </div>
-                <div className="bg-red-100 text-red-600 font-bold text-lg px-4 py-2 rounded-lg">
-                  -67%
-                </div>
+                {discount !== null && (
+                  <div className="bg-red-100 text-red-600 font-bold text-lg px-4 py-2 rounded-lg">
+                    -{discount}%
+                  </div>
+                )}
               </div>
             </div>
 
             <Button
-              className="w-full h-14 text-lg font-bold"
+              className="w-full h-14 text-lg font-bold bg-green-600 hover:bg-green-700"
               onClick={handleAccept}
               disabled={isLoading}
             >
@@ -130,7 +210,7 @@ export default function UpsellPage() {
                 <span className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent" />
               ) : (
                 <>
-                  Oui ! Je veux le coaching à 97€
+                  Oui ! Je veux cette offre à {formatPrice(displayPrice)}
                   <ArrowRight className="w-5 h-5 ml-2" />
                 </>
               )}
@@ -141,7 +221,7 @@ export default function UpsellPage() {
               className="w-full mt-3 text-xs text-gray-400 hover:text-gray-600 transition-colors text-center"
             >
               <X className="w-3 h-3 inline mr-1" />
-              Non merci, je decline cette offre unique et je perds cette opportunité
+              Non merci, je décline cette offre unique et je perds cette opportunité
             </button>
           </CardContent>
         </Card>

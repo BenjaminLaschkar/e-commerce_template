@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Send, Search, CheckCircle, Plus, Trash2, X } from 'lucide-react'
+import { Send, Search, CheckCircle, Plus, Trash2, X, Globe, ChevronDown, ChevronUp, Save } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -31,14 +31,32 @@ const EMAIL_TYPE_LABELS: Record<string, string> = {
   CAMPAIGN: 'Campagne',
 }
 
+const AUTO_EMAIL_TYPES = [
+  { id: 'ORDER_CONFIRMATION', label: '✅ Confirmation commande', vars: '{firstName}, {orderNumber}, {total}, {items}' },
+  { id: 'ORDER_SHIPPED', label: '📦 Expédition', vars: '{firstName}, {orderNumber}, {trackingNumber}' },
+  { id: 'ORDER_DELIVERED', label: '🏠 Livraison', vars: '{firstName}, {orderNumber}' },
+  { id: 'CART_ABANDON_1', label: '🛒 Abandon panier 1h', vars: '{firstName}, {total}, {items}' },
+  { id: 'CART_ABANDON_2', label: '🔥 Abandon panier 24h', vars: '{firstName}, {total}, {items}' },
+]
+
+interface EmailTemplate {
+  id: string
+  subjectFr: string
+  subjectEn: string
+  bodyFr: string
+  bodyEn: string
+}
+
 export default function AdminMailingClient({
   customers,
   emailLogs,
   products,
+  emailTemplates: initialTemplates,
 }: {
   customers: any[]
   emailLogs: any[]
   products: any[]
+  emailTemplates: EmailTemplate[]
 }) {
   const { toast } = useToast()
   const [segment, setSegment] = useState('all')
@@ -47,6 +65,63 @@ export default function AdminMailingClient({
   const [isSending, setIsSending] = useState(false)
   const [sendResult, setSendResult] = useState<{ sent: number; failed: number; total: number } | null>(null)
   const [search, setSearch] = useState('')
+
+  // ── Email templates state ────────────────────────────────────────────────────
+  const [templates, setTemplates] = useState<Record<string, EmailTemplate>>(
+    Object.fromEntries(initialTemplates.map((t) => [t.id, t]))
+  )
+  const [activeTemplate, setActiveTemplate] = useState<string>('ORDER_CONFIRMATION')
+  const [templateExpanded, setTemplateExpanded] = useState(true)
+  const [savingTemplate, setSavingTemplate] = useState(false)
+  const [translating, setTranslating] = useState<Record<string, boolean>>({})
+
+  const currentTpl = templates[activeTemplate] ?? {
+    id: activeTemplate, subjectFr: '', subjectEn: '', bodyFr: '', bodyEn: '',
+  }
+
+  const updateTpl = (field: keyof EmailTemplate, value: string) => {
+    setTemplates((prev) => ({
+      ...prev,
+      [activeTemplate]: { ...currentTpl, [field]: value },
+    }))
+  }
+
+  const handleSaveTemplate = async () => {
+    setSavingTemplate(true)
+    try {
+      const res = await fetch('/api/admin/email-templates', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...currentTpl, id: activeTemplate }),
+      })
+      if (!res.ok) throw new Error('Erreur sauvegarde')
+      toast({ title: '✅ Template enregistré' })
+    } catch {
+      toast({ title: 'Erreur', variant: 'destructive' })
+    } finally {
+      setSavingTemplate(false)
+    }
+  }
+
+  const handleTranslateField = async (srcField: 'subjectFr' | 'bodyFr', dstField: 'subjectEn' | 'bodyEn') => {
+    const text = currentTpl[srcField]
+    if (!text.trim()) return
+    const key = `${activeTemplate}_${dstField}`
+    setTranslating((p) => ({ ...p, [key]: true }))
+    try {
+      const res = await fetch(
+        `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text.slice(0, 500))}&langpair=fr|en`
+      )
+      const data = await res.json()
+      if (data.responseData?.translatedText) {
+        updateTpl(dstField, data.responseData.translatedText)
+      }
+    } catch {
+      toast({ title: 'Erreur traduction', variant: 'destructive' })
+    } finally {
+      setTranslating((p) => ({ ...p, [key]: false }))
+    }
+  }
 
   // Add contact modal
   const [showAddModal, setShowAddModal] = useState(false)
@@ -289,6 +364,131 @@ export default function AdminMailingClient({
               </Card>
             </div>
           </div>
+
+          {/* Email templates */}
+          <Card>
+            <CardHeader
+              className="cursor-pointer select-none"
+              onClick={() => setTemplateExpanded((v) => !v)}
+            >
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base">Templates d&apos;emails automatiques</CardTitle>
+                {templateExpanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+              </div>
+              <p className="text-xs text-gray-400 mt-1 font-normal">
+                Personnalisez le sujet et le contenu des emails envoyés automatiquement. Laissez vide pour utiliser le template par défaut.
+              </p>
+            </CardHeader>
+            {templateExpanded && (
+              <CardContent className="space-y-4">
+                {/* Type selector */}
+                <div className="flex flex-wrap gap-2">
+                  {AUTO_EMAIL_TYPES.map((type) => (
+                    <button
+                      key={type.id}
+                      onClick={() => setActiveTemplate(type.id)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ${
+                        activeTemplate === type.id
+                          ? 'bg-indigo-600 text-white border-indigo-600'
+                          : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      {type.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Variables hint */}
+                <p className="text-xs text-gray-400 bg-gray-50 rounded px-3 py-2">
+                  Variables disponibles : <code className="font-mono">{AUTO_EMAIL_TYPES.find((t) => t.id === activeTemplate)?.vars}</code>
+                </p>
+
+                {/* FR fields */}
+                <div className="space-y-3 border rounded-lg p-4">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">🇫🇷 Français</p>
+                  <div>
+                    <Label className="text-xs">Sujet (FR)</Label>
+                    <Input
+                      value={currentTpl.subjectFr}
+                      onChange={(e) => updateTpl('subjectFr', e.target.value)}
+                      placeholder="Laissez vide pour utiliser le sujet par défaut"
+                      className="mt-1 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Corps (FR) — HTML supporté</Label>
+                    <Textarea
+                      value={currentTpl.bodyFr}
+                      onChange={(e) => updateTpl('bodyFr', e.target.value)}
+                      placeholder="Laissez vide pour utiliser le contenu par défaut&#10;&#10;Exemple :&#10;&lt;p&gt;Bonjour {firstName},&lt;/p&gt;&#10;&lt;p&gt;Votre commande #{orderNumber} est confirmée !&lt;/p&gt;"
+                      rows={8}
+                      className="mt-1 font-mono text-xs"
+                    />
+                  </div>
+                </div>
+
+                {/* EN fields */}
+                <div className="space-y-3 border rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">🇬🇧 English</p>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleTranslateField('subjectFr', 'subjectEn')}
+                        disabled={translating[`${activeTemplate}_subjectEn`] || !currentTpl.subjectFr.trim()}
+                        className="flex items-center gap-1.5 text-xs px-2 py-1 rounded border border-gray-200 hover:bg-gray-50 disabled:opacity-40 transition-colors"
+                      >
+                        <Globe className="w-3 h-3" />
+                        {translating[`${activeTemplate}_subjectEn`] ? 'Traduction...' : 'Traduire sujet'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleTranslateField('bodyFr', 'bodyEn')}
+                        disabled={translating[`${activeTemplate}_bodyEn`] || !currentTpl.bodyFr.trim()}
+                        className="flex items-center gap-1.5 text-xs px-2 py-1 rounded border border-gray-200 hover:bg-gray-50 disabled:opacity-40 transition-colors"
+                      >
+                        <Globe className="w-3 h-3" />
+                        {translating[`${activeTemplate}_bodyEn`] ? 'Traduction...' : 'Traduire corps'}
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Subject (EN)</Label>
+                    <Input
+                      value={currentTpl.subjectEn}
+                      onChange={(e) => updateTpl('subjectEn', e.target.value)}
+                      placeholder="Leave empty to use default or auto-translate from FR"
+                      className="mt-1 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Body (EN) — HTML supported</Label>
+                    <Textarea
+                      value={currentTpl.bodyEn}
+                      onChange={(e) => updateTpl('bodyEn', e.target.value)}
+                      placeholder="Leave empty to use default or auto-translate from FR"
+                      rows={8}
+                      className="mt-1 font-mono text-xs"
+                    />
+                  </div>
+                </div>
+
+                <Button onClick={handleSaveTemplate} disabled={savingTemplate} className="w-full">
+                  {savingTemplate ? (
+                    <span className="flex items-center gap-2">
+                      <span className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                      Enregistrement...
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-2">
+                      <Save className="w-4 h-4" />
+                      Enregistrer ce template
+                    </span>
+                  )}
+                </Button>
+              </CardContent>
+            )}
+          </Card>
 
           {/* Email logs */}
           <Card>

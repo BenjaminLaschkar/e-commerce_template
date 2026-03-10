@@ -33,8 +33,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (body.features    !== undefined) data.features    = body.features
     if (body.stock       !== undefined) data.stock       = body.stock
     if (body.sku         !== undefined) data.sku         = body.sku
-    if (body.weight      !== undefined) data.weight      = body.weight
-    if (body.isActive    !== undefined) data.isActive    = body.isActive
+    if (body.weight           !== undefined) data.weight           = body.weight
+    if (body.isActive         !== undefined) data.isActive         = body.isActive
+    if (body.upsellActive     !== undefined) data.upsellActive     = body.upsellActive
+    if (body.upsellPrice      !== undefined) data.upsellPrice      = body.upsellPrice
+    if (body.upsellMessage    !== undefined) data.upsellMessage    = body.upsellMessage
+    if (body.upsellSendEmail  !== undefined) data.upsellSendEmail  = body.upsellSendEmail
+    if (body.upsellTriggerIds !== undefined) data.upsellTriggerIds = body.upsellTriggerIds
 
     const product = await prisma.product.update({
       where: { id: params.id },

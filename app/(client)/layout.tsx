@@ -1,6 +1,7 @@
 import { Metadata } from 'next'
 import { CartProvider } from '@/components/client/CartProvider'
 import { LangProvider } from '@/components/client/LangProvider'
+import { SettingsProvider } from '@/components/client/SettingsProvider'
 import { getSiteSettings } from '@/lib/site-settings'
 
 export const metadata: Metadata = {
@@ -35,12 +36,23 @@ export default async function ClientLayout({ children }: { children: React.React
   const primaryHsl = hexToHsl(settings.primaryColor ?? '#4f46e5')
   const css = `:root { --primary: ${primaryHsl}; --ring: ${primaryHsl}; }`
 
+  const publicSettings = {
+    storeName: settings.storeName,
+    logoUrl: settings.logoUrl ?? null,
+    announceBannerFr: settings.announceBannerFr ?? null,
+    announceBannerEn: settings.announceBannerEn ?? null,
+    checkoutDistractionFree: settings.checkoutDistractionFree ?? false,
+    freeShippingThreshold: settings.freeShippingThreshold ?? 0,
+  }
+
   return (
     <LangProvider>
       <CartProvider>
-        {/* eslint-disable-next-line react/no-danger */}
-        <style dangerouslySetInnerHTML={{ __html: css }} />
-        {children}
+        <SettingsProvider settings={publicSettings}>
+          {/* eslint-disable-next-line react/no-danger */}
+          <style dangerouslySetInnerHTML={{ __html: css }} />
+          {children}
+        </SettingsProvider>
       </CartProvider>
     </LangProvider>
   )

@@ -35,6 +35,9 @@ const settingsPatchSchema = z.object({
   faqContentEN:      z.string().max(50_000).nullable().optional(),
   deliveryContentEN: z.string().max(50_000).nullable().optional(),
   blockedCountries:  z.array(z.string().length(2)).max(200).optional(),
+  announceBannerFr:  z.string().max(500).nullable().optional(),
+  announceBannerEn:  z.string().max(500).nullable().optional(),
+  checkoutDistractionFree: z.boolean().optional(),
 }).strict() // reject unknown keys
 
 // GET /api/admin/settings  — returns full settings (secrets masked for display)

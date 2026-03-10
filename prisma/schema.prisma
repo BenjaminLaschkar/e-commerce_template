@@ -40,6 +40,14 @@ model Product {
   isActive     Boolean      @default(true)
   weight       Float?
   sku          String?      @unique
+
+  // Upsell configuration
+  upsellActive     Boolean  @default(false)
+  upsellPrice      Float?
+  upsellMessage    String?  @db.Text
+  upsellSendEmail  Boolean  @default(false)
+  upsellTriggerIds String[] @default([])
+
   cartItems    CartItem[]
   orderItems   OrderItem[]
   funnelEvents FunnelEvent[]
@@ -262,7 +270,26 @@ model SiteSettings {
   faqContentEN      String? @db.Text
   deliveryContentEN String? @db.Text
 
+  // Announce banner (top-of-page strip)
+  announceBannerFr String? @db.Text
+  announceBannerEn String? @db.Text
+
+  // Checkout options
+  checkoutDistractionFree Boolean @default(false)
+
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================
+// EMAIL TEMPLATES (customizable automatic emails)
+// ============================================
+model EmailTemplate {
+  id        String   @id // = EmailType value (ORDER_CONFIRMATION, etc.)
+  subjectFr String   @default("")
+  subjectEn String   @default("")
+  bodyFr    String   @default("") @db.Text
+  bodyEn    String   @default("") @db.Text
   updatedAt DateTime @updatedAt
 }
 

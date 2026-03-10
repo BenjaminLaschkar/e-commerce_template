@@ -7,11 +7,15 @@ interface Props {
 }
 
 export default async function EditProductPage({ params }: Props) {
-  const product = await prisma.product.findUnique({
-    where: { id: params.id },
-  })
+  const [product, allProducts] = await Promise.all([
+    prisma.product.findUnique({ where: { id: params.id } }),
+    prisma.product.findMany({
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true, slug: true },
+    }),
+  ])
 
   if (!product) notFound()
 
-  return <ProductEditClient product={product} />
+  return <ProductEditClient product={product} allProducts={allProducts} />
 }

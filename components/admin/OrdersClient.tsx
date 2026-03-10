@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, Fragment } from 'react'
 import { Search, Filter, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -147,9 +147,8 @@ export default function AdminOrdersClient({ orders: initialOrders }: { orders: O
                   </thead>
                   <tbody className="divide-y">
                     {filtered.map((order) => (
-                      <>
+                      <Fragment key={order.id}>
                         <tr
-                          key={order.id}
                           className="hover:bg-gray-50 cursor-pointer"
                           onClick={() => setExpandedOrder(expandedOrder === order.id ? null : order.id)}
                         >
@@ -231,7 +230,7 @@ export default function AdminOrdersClient({ orders: initialOrders }: { orders: O
                             </td>
                           </tr>
                         )}
-                      </>
+                      </Fragment>
                     ))}
                     {filtered.length === 0 && (
                       <tr>

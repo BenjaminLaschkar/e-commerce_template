@@ -54,6 +54,7 @@ export async function GET(req: NextRequest) {
             quantity: true,
             price: true,
             name: true,
+            productId: true,
             product: { select: { name: true, images: true } },
           },
         },

@@ -72,7 +72,14 @@ export async function POST(req: NextRequest) {
         if (paymentIntent.metadata?.orderNumber) {
           const existing = await prisma.order.findUnique({
             where: { orderNumber: paymentIntent.metadata.orderNumber },
-            select: { status: true },
+            select: {
+              id: true,
+              status: true,
+              total: true,
+              orderNumber: true,
+              customer: { select: { email: true, firstName: true } },
+              items: { select: { name: true, quantity: true, price: true } },
+            },
           })
           if (existing?.status === 'PAID') {
             logger.info('stripe', `Webhook doublon ignoré: ${event.type}`, { id: event.id })
@@ -82,6 +89,20 @@ export async function POST(req: NextRequest) {
             where: { orderNumber: paymentIntent.metadata.orderNumber, status: 'PENDING' },
             data: { status: 'PAID', stripePaymentId: paymentIntent.id },
           })
+          // Send confirmation email
+          if (existing) {
+            try {
+              await sendOrderConfirmation({
+                id: existing.id,
+                orderNumber: existing.orderNumber,
+                customer: existing.customer,
+                items: existing.items,
+                total: existing.total,
+              })
+            } catch (e) {
+              logger.warn('stripe', 'Échec envoi email confirmation (payment_intent)', { orderNumber: paymentIntent.metadata.orderNumber, error: String(e) })
+            }
+          }
           logger.info('stripe', `PaymentIntent réussi: ${paymentIntent.id}`, { orderNumber: paymentIntent.metadata.orderNumber })
         }
         break

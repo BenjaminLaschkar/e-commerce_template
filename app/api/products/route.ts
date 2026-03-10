@@ -17,6 +17,12 @@ const productSchema = z.object({
   isActive: z.boolean().default(true),
   sku: z.string().optional(),
   weight: z.number().optional(),
+  // Upsell
+  upsellActive: z.boolean().default(false),
+  upsellPrice: z.number().positive().optional().nullable(),
+  upsellMessage: z.string().optional().nullable(),
+  upsellSendEmail: z.boolean().default(false),
+  upsellTriggerIds: z.array(z.string()).default([]),
 })
 
 // GET /api/products

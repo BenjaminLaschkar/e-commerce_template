@@ -10,16 +10,19 @@ import SiteFooter from '@/components/client/SiteFooter'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useCart } from '@/components/client/CartProvider'
+import { useSettings } from '@/components/client/SettingsProvider'
+import { useLang } from '@/components/client/LangProvider'
 import { formatPrice } from '@/lib/utils'
 
 export default function CartPage() {
   const { items, updateQuantity, removeItem, totalPrice, totalItems } = useCart()
+  const { storeName, logoUrl } = useSettings()
+  const { t } = useLang()
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
 
   const handleCheckout = async () => {
     setIsLoading(true)
-    // Track checkout start
     const sessionId = localStorage.getItem('session_id') || ''
     try {
       await fetch('/api/tracking', {
@@ -34,43 +37,43 @@ export default function CartPage() {
   if (items.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col">
-        <SiteHeader />
+        <SiteHeader storeName={storeName} logoUrl={logoUrl} />
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <ShoppingCart className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h1 className="text-2xl font-bold text-gray-800 mb-2">Votre panier est vide</h1>
-            <p className="text-gray-500 mb-6">Découvrez nos produits et ajoutez-les à votre panier.</p>
+            <h1 className="text-2xl font-bold text-gray-800 mb-2">{t.cart_empty}</h1>
+            <p className="text-gray-500 mb-6">{t.cart_empty_sub}</p>
             <Link href="/">
-              <Button>Voir nos produits</Button>
+              <Button>{t.cart_see_products}</Button>
             </Link>
           </div>
         </div>
-        <SiteFooter />
+        <SiteFooter storeName={storeName} />
       </div>
     )
   }
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      <SiteHeader />
+      <SiteHeader storeName={storeName} logoUrl={logoUrl} />
 
       <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-6 sm:py-8">
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 text-sm text-gray-500 mb-6">
-          <Link href="/" className="hover:text-primary">Produit</Link>
+          <Link href="/" className="hover:text-primary">{t.bc_product}</Link>
           <span>›</span>
-          <span className="text-gray-900 font-medium">Panier</span>
+          <span className="text-gray-900 font-medium">{t.bc_cart}</span>
           <span>›</span>
-          <span>Checkout</span>
+          <span>{t.bc_checkout}</span>
           <span>›</span>
-          <span>Paiement</span>
+          <span>{t.bc_payment}</span>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Cart Items */}
           <div className="lg:col-span-2 space-y-4">
             <h1 className="text-2xl font-bold text-gray-900">
-              Votre panier ({totalItems} article{totalItems > 1 ? 's' : ''})
+              {t.cart_title} ({totalItems} {totalItems > 1 ? t.cart_articles : t.cart_article})
             </h1>
 
             {items.map((item) => (
@@ -125,9 +128,9 @@ export default function CartPage() {
             {/* Trust signals */}
             <div className="grid grid-cols-3 gap-4 mt-4">
               {[
-                { icon: Shield, label: 'Paiement 100% sécurisé' },
-                { icon: RotateCcw, label: 'Satisfait ou remboursé' },
-                { icon: Zap, label: 'Accès immédiat' },
+                { icon: Shield,    label: t.cart_trust_pay },
+                { icon: RotateCcw, label: t.cart_trust_ret },
+                { icon: Zap,       label: t.cart_trust_fast },
               ].map(({ icon: Icon, label }) => (
                 <div key={label} className="flex items-center gap-2 text-sm text-gray-500 bg-white rounded-lg p-3 border">
                   <Icon className="w-4 h-4 text-green-500 flex-shrink-0" />
@@ -141,7 +144,7 @@ export default function CartPage() {
           <div className="space-y-4">
             <Card className="sticky top-24">
               <CardHeader>
-                <CardTitle>Récapitulatif</CardTitle>
+                <CardTitle>{t.cart_summary}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 {items.map((item) => (
@@ -153,15 +156,15 @@ export default function CartPage() {
 
                 <div className="border-t pt-3">
                   <div className="flex justify-between text-sm text-gray-600 mb-1">
-                    <span>Sous-total</span>
+                    <span>{t.cart_subtotal}</span>
                     <span>{formatPrice(totalPrice)}</span>
                   </div>
                   <div className="flex justify-between text-sm text-green-600 mb-3">
-                    <span>Livraison</span>
-                    <span>GRATUITE</span>
+                    <span>{t.cart_shipping}</span>
+                    <span>{t.cart_shipping_free}</span>
                   </div>
                   <div className="flex justify-between text-lg font-bold border-t pt-3">
-                    <span>Total</span>
+                    <span>{t.cart_total}</span>
                     <span className="text-indigo-600">{formatPrice(totalPrice)}</span>
                   </div>
                 </div>
@@ -174,11 +177,11 @@ export default function CartPage() {
                   {isLoading ? (
                     <span className="flex items-center gap-2">
                       <span className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
-                      Chargement...
+                      {t.cart_loading}
                     </span>
                   ) : (
                     <span className="flex items-center gap-2">
-                      Procéder au paiement
+                      {t.cart_checkout}
                       <ArrowRight className="w-4 h-4" />
                     </span>
                   )}
@@ -186,7 +189,7 @@ export default function CartPage() {
 
                 <div className="flex items-center justify-center gap-2 text-xs text-gray-400">
                   <Shield className="w-3 h-3" />
-                  <span>Paiement chiffré SSL 256-bit</span>
+                  <span>{t.cart_ssl}</span>
                 </div>
 
                 {/* Payment logos */}
@@ -200,7 +203,7 @@ export default function CartPage() {
           </div>
         </div>
       </main>
-      <SiteFooter />
+      <SiteFooter storeName={storeName} />
     </div>
   )
 }

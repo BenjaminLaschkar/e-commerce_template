@@ -10,6 +10,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useCart } from '@/components/client/CartProvider'
+import { useSettings } from '@/components/client/SettingsProvider'
+import { useLang } from '@/components/client/LangProvider'
 import { useToast } from '@/components/ui/use-toast'
 import { formatPrice } from '@/lib/utils'
 
@@ -32,6 +34,8 @@ interface Product {
 
 export default function ProductPageClient({ product }: { product: Product }) {
   const { addItem, totalItems, sessionId } = useCart()
+  const { storeName, logoUrl, announceBannerFr, announceBannerEn } = useSettings()
+  const { t, lang } = useLang()
   const { toast } = useToast()
   const router = useRouter()
 
@@ -106,12 +110,14 @@ export default function ProductPageClient({ product }: { product: Product }) {
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
-      <SiteHeader />
+      <SiteHeader storeName={storeName} logoUrl={logoUrl} />
       <main className="flex-1">
-      {/* Top banner */}
-      <div className="bg-indigo-600 text-white text-center py-2 text-sm font-medium">
-        🚚 Livraison gratuite à partir de 50€ — Satisfait ou remboursé 30 jours
-      </div>
+      {/* Announce banner — dynamic from settings */}
+      {(announceBannerFr || announceBannerEn) ? (
+        <div className="bg-indigo-600 text-white text-center py-2 text-sm font-medium">
+          {`🚚 ${lang === 'en' ? (announceBannerEn || announceBannerFr || '') : (announceBannerFr || announceBannerEn || '')}`}
+        </div>
+      ) : null}
 
       <div className="max-w-6xl mx-auto px-4 py-6 sm:py-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
@@ -281,13 +287,13 @@ export default function ProductPageClient({ product }: { product: Product }) {
             {/* Trust signals */}
             <div className="grid grid-cols-3 gap-3 pt-2 border-t">
               {[
-                { icon: <Shield className="w-5 h-5 text-indigo-500" />, label: 'Paiement sécurisé' },
-                { icon: <Truck className="w-5 h-5 text-indigo-500" />, label: 'Livraison rapide' },
-                { icon: <RefreshCw className="w-5 h-5 text-indigo-500" />, label: 'Retour 30 jours' },
-              ].map((t) => (
-                <div key={t.label} className="flex flex-col items-center text-center gap-1">
-                  {t.icon}
-                  <span className="text-xs text-gray-500">{t.label}</span>
+                { icon: <Shield className="w-5 h-5 text-indigo-500" />, label: t.secure },
+                { icon: <Truck className="w-5 h-5 text-indigo-500" />, label: t.delivery },
+                { icon: <RefreshCw className="w-5 h-5 text-indigo-500" />, label: t.returns },
+              ].map((item) => (
+                <div key={item.label} className="flex flex-col items-center text-center gap-1">
+                  {item.icon}
+                  <span className="text-xs text-gray-500">{item.label}</span>
                 </div>
               ))}
             </div>
@@ -297,7 +303,7 @@ export default function ProductPageClient({ product }: { product: Product }) {
         {/* Social proof */}
         <section className="mt-16">
           <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">
-            Ce que disent nos clients
+            {t.reviews_title}
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[
@@ -331,7 +337,7 @@ export default function ProductPageClient({ product }: { product: Product }) {
         </section>
       </div>
       </main>
-      <SiteFooter />
+      <SiteFooter storeName={storeName} />
     </div>
   )
 }
