@@ -29,19 +29,29 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export async function generateStaticParams() {
-  const products = await prisma.product.findMany({
-    where: { isActive: true },
-    select: { slug: true },
-  })
-  return products.map((p) => ({ slug: p.slug }))
+  try {
+    const products = await prisma.product.findMany({
+      where: { isActive: true },
+      select: { slug: true },
+    })
+    return products.map((p) => ({ slug: p.slug }))
+  } catch {
+    // Pas de BDD disponible au build (ex: Docker build) — les pages seront rendues à la demande
+    return []
+  }
 }
 
 export default async function ProductPage({ params }: Props) {
-  const product = await prisma.product.findUnique({
+  const raw = await prisma.product.findUnique({
     where: { slug: params.slug, isActive: true },
   })
 
-  if (!product) notFound()
+  if (!raw) notFound()
+
+  const product = {
+    ...raw,
+    options: raw.options as { groups: Array<{ name: string; choices: string[] }> } | null | undefined,
+  }
 
   return <ProductPageClient product={product} />
 }

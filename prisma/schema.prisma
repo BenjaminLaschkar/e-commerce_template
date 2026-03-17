@@ -41,6 +41,9 @@ model Product {
   weight       Float?
   sku          String?      @unique
 
+  // Options (versions, colours, etc. — stored as JSON option groups)
+  options          Json     @default("{}")
+
   // Upsell configuration
   upsellActive     Boolean  @default(false)
   upsellPrice      Float?

@@ -15,6 +15,8 @@ import {
   Pause,
   HardDrive,
   AlertCircle,
+  RotateCcw,
+  TriangleAlert,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { LogType, LogFileStats } from '@/lib/log-types'
@@ -104,6 +106,8 @@ export default function AdminLogsClient({ initialStats }: Props) {
   const [search, setSearch] = useState('')
   const [autoScroll, setAutoScroll] = useState(true)
   const [clearConfirm, setClearConfirm] = useState<LogType | null>(null)
+  const [resetStep, setResetStep] = useState<0 | 1 | 2>(0)
+  const [isResetting, setIsResetting] = useState(false)
   const logRef = useRef<HTMLDivElement>(null)
 
   // ── Data fetching ──────────────────────────────────────────────────────────
@@ -181,6 +185,25 @@ export default function AdminLogsClient({ initialStats }: Props) {
     URL.revokeObjectURL(url)
   }
 
+  const handleReset = async () => {
+    setIsResetting(true)
+    try {
+      const res = await fetch('/api/admin/reset', { method: 'POST' })
+      if (res.ok) {
+        setResetStep(0)
+        // Force page reload so the admin sees a clean state
+        window.location.reload()
+      } else {
+        const data = await res.json()
+        alert('Erreur : ' + (data.error ?? 'Reset échoué'))
+      }
+    } catch {
+      alert('Impossible de contacter le serveur.')
+    } finally {
+      setIsResetting(false)
+    }
+  }
+
   // ── Derived values ─────────────────────────────────────────────────────────
 
   const current = tabData[activeTab]
@@ -201,15 +224,73 @@ export default function AdminLogsClient({ initialStats }: Props) {
 
         {/* ── Page header ── */}
         <div className="px-6 py-5 border-b border-slate-800 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-900/40 border border-emerald-800/60 flex items-center justify-center">
-              <Terminal className="w-5 h-5 text-emerald-400" />
+          <div className="flex items-center justify-between w-full gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-900/40 border border-emerald-800/60 flex items-center justify-center">
+                <Terminal className="w-5 h-5 text-emerald-400" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-white">Logs Système</h1>
+                <p className="text-slate-400 text-sm">
+                  Rotation automatique · 2 × 500 MB par canal · lecture temps réel
+                </p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-xl font-bold text-white">Logs Système</h1>
-              <p className="text-slate-400 text-sm">
-                Rotation automatique · 2 × 500 MB par canal · lecture temps réel
-              </p>
+
+            {/* ── RESET BOUTIQUE ─────────────────────────────── */}
+            <div className="flex items-center gap-2">
+              {resetStep === 0 && (
+                <button
+                  onClick={() => setResetStep(1)}
+                  className="flex items-center gap-2 px-4 py-2 bg-red-950/50 hover:bg-red-900/60 text-red-400 hover:text-red-300 border border-red-900/60 hover:border-red-700 rounded-lg text-sm font-medium transition-all"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  Reset Boutique
+                </button>
+              )}
+
+              {resetStep === 1 && (
+                <div className="flex items-center gap-2 bg-red-950/60 border border-red-800/80 rounded-lg px-3 py-2">
+                  <TriangleAlert className="w-4 h-4 text-red-400 shrink-0" />
+                  <span className="text-xs text-red-300 font-medium">
+                    Supprimer TOUS les produits, commandes et clients ?
+                  </span>
+                  <button
+                    onClick={() => setResetStep(2)}
+                    className="px-2.5 py-1 bg-red-800 hover:bg-red-700 text-red-100 rounded text-xs font-bold"
+                  >
+                    Continuer
+                  </button>
+                  <button
+                    onClick={() => setResetStep(0)}
+                    className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-xs"
+                  >
+                    Annuler
+                  </button>
+                </div>
+              )}
+
+              {resetStep === 2 && (
+                <div className="flex items-center gap-2 bg-red-900/70 border-2 border-red-600 rounded-lg px-3 py-2">
+                  <TriangleAlert className="w-4 h-4 text-yellow-400 shrink-0 animate-pulse" />
+                  <span className="text-xs text-white font-bold">
+                    ⚠️ IRRÉVERSIBLE — Confirmer le reset total ?
+                  </span>
+                  <button
+                    onClick={handleReset}
+                    disabled={isResetting}
+                    className="px-3 py-1 bg-red-600 hover:bg-red-500 text-white rounded text-xs font-bold disabled:opacity-50"
+                  >
+                    {isResetting ? 'Reset...' : 'OUI, TOUT EFFACER'}
+                  </button>
+                  <button
+                    onClick={() => setResetStep(0)}
+                    className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-xs"
+                  >
+                    Annuler
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>

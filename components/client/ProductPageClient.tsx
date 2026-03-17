@@ -28,6 +28,7 @@ interface Product {
   stock: number
   features: string[]
   isActive: boolean
+  options?: { groups: Array<{ name: string; choices: string[] }> } | null
 }
 
 // ─── Component ─────────────────────────────────────────────────────────────────
@@ -44,6 +45,14 @@ export default function ProductPageClient({ product }: { product: Product }) {
   const [isAdding, setIsAdding] = useState(false)
   const [showFullDesc, setShowFullDesc] = useState(false)
   const tracked = useRef(false)
+
+  // Initialise option selections to the first choice in each group
+  const optGroups = product.options?.groups ?? []
+  const [selectedOpts, setSelectedOpts] = useState<Record<string, string>>(() => {
+    const init: Record<string, string> = {}
+    optGroups.forEach(g => { if (g.choices.length > 0) init[g.name] = g.choices[0] })
+    return init
+  })
 
   const discount = product.comparePrice
     ? Math.round(((product.comparePrice - product.price) / product.comparePrice) * 100)
@@ -114,7 +123,7 @@ export default function ProductPageClient({ product }: { product: Product }) {
       <main className="flex-1">
       {/* Announce banner — dynamic from settings */}
       {(announceBannerFr || announceBannerEn) ? (
-        <div className="bg-indigo-600 text-white text-center py-2 text-sm font-medium">
+        <div className="bg-brand-accent text-white text-center py-2 text-sm font-medium">
           {`🚚 ${lang === 'en' ? (announceBannerEn || announceBannerFr || '') : (announceBannerFr || announceBannerEn || '')}`}
         </div>
       ) : null}
@@ -155,7 +164,7 @@ export default function ProductPageClient({ product }: { product: Product }) {
                     key={i}
                     onClick={() => setSelectedImage(i)}
                     className={`relative w-16 h-16 flex-shrink-0 rounded-lg overflow-hidden border-2 transition-all ${
-                      i === selectedImage ? 'border-indigo-500' : 'border-gray-200'
+                      i === selectedImage ? 'border-brand-accent' : 'border-gray-200'
                     }`}
                   >
                     <Image src={img} alt="" fill className="object-cover" />
@@ -217,7 +226,7 @@ export default function ProductPageClient({ product }: { product: Product }) {
                 {product.description.length > 180 && (
                   <button
                     onClick={() => setShowFullDesc(!showFullDesc)}
-                    className="text-indigo-600 text-sm flex items-center gap-1 mt-1"
+                    className="text-brand-accent text-sm flex items-center gap-1 mt-1"
                   >
                     {showFullDesc ? (
                       <>Voir moins <ChevronUp className="w-3 h-3" /></>
@@ -234,11 +243,43 @@ export default function ProductPageClient({ product }: { product: Product }) {
               <ul className="space-y-1.5">
                 {(product.features ?? []).map((f, i) => (
                   <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
-                    <span className="text-indigo-500 font-bold mt-0.5">✓</span>
+                    <span className="text-brand-primary font-bold mt-0.5">✓</span>
                     {f}
                   </li>
                 ))}
               </ul>
+            )}
+
+            {/* ── Selectable options (Version, Couleur, etc.) ── */}
+            {optGroups.length > 0 && (
+              <div className="space-y-4 border-t pt-4">
+                {optGroups.map(group => (
+                  <div key={group.name}>
+                    <p className="text-sm font-semibold text-gray-700 mb-2">
+                      {group.name}
+                      {selectedOpts[group.name] && (
+                        <span className="font-normal text-gray-500 ml-1">— {selectedOpts[group.name]}</span>
+                      )}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {group.choices.map(choice => (
+                        <button
+                          key={choice}
+                          type="button"
+                          onClick={() => setSelectedOpts(prev => ({ ...prev, [group.name]: choice }))}
+                          className={`px-3 py-1.5 rounded-full text-sm border transition-all ${
+                            selectedOpts[group.name] === choice
+                              ? 'bg-brand-accent text-white border-brand-accent'
+                              : 'bg-white text-gray-700 border-gray-300 hover:border-brand-accent hover:text-brand-accent'
+                          }`}
+                        >
+                          {choice}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
 
             {/* Quantity + CTA */}
@@ -268,7 +309,7 @@ export default function ProductPageClient({ product }: { product: Product }) {
                 <Button
                   onClick={handleAddToCart}
                   disabled={isAdding || product.stock === 0}
-                  className="flex-1 h-12 text-base bg-indigo-600 hover:bg-indigo-700"
+                  className="flex-1 h-12 text-base bg-brand-accent hover:bg-[#2a2a2a] text-white"
                 >
                   <ShoppingCart className="w-4 h-4 mr-2" />
                   {isAdding ? 'Ajout...' : 'Ajouter au panier'}
@@ -277,7 +318,7 @@ export default function ProductPageClient({ product }: { product: Product }) {
                   onClick={handleBuyNow}
                   disabled={isAdding || product.stock === 0}
                   variant="outline"
-                  className="flex-1 h-12 text-base border-indigo-600 text-indigo-600 hover:bg-indigo-50"
+                  className="flex-1 h-12 text-base border-brand-accent text-brand-accent hover:bg-brand-secondary"
                 >
                   Acheter maintenant
                 </Button>
@@ -287,9 +328,9 @@ export default function ProductPageClient({ product }: { product: Product }) {
             {/* Trust signals */}
             <div className="grid grid-cols-3 gap-3 pt-2 border-t">
               {[
-                { icon: <Shield className="w-5 h-5 text-indigo-500" />, label: t.secure },
-                { icon: <Truck className="w-5 h-5 text-indigo-500" />, label: t.delivery },
-                { icon: <RefreshCw className="w-5 h-5 text-indigo-500" />, label: t.returns },
+              { icon: <Shield className="w-5 h-5 text-brand-primary" />, label: t.secure },
+              { icon: <Truck className="w-5 h-5 text-brand-primary" />, label: t.delivery },
+              { icon: <RefreshCw className="w-5 h-5 text-brand-primary" />, label: t.returns },
               ].map((item) => (
                 <div key={item.label} className="flex flex-col items-center text-center gap-1">
                   {item.icon}

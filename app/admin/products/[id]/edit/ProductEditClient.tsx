@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/components/ui/use-toast'
-import { Plus, Trash2, ArrowLeft, Upload, Images, Zap } from 'lucide-react'
+import { Plus, Trash2, ArrowLeft, Upload, Images, Zap, X } from 'lucide-react'
 import MediaPicker from '@/components/admin/MediaPicker'
 
 interface ProductRef {
@@ -36,6 +36,8 @@ interface Product {
   upsellMessage: string | null
   upsellSendEmail: boolean
   upsellTriggerIds: string[]
+  // Options
+  options: { groups: Array<{ name: string; choices: string[] }> } | null
 }
 
 export default function ProductEditClient({
@@ -72,6 +74,28 @@ export default function ProductEditClient({
   const [newImageUrl, setNewImageUrl] = useState('')
   const [pickerOpen, setPickerOpen] = useState(false)
   const uploadRef = useRef<HTMLInputElement>(null)
+
+  // Options
+  const [optGroups, setOptGroups] = useState<Array<{ name: string; choices: string[] }>>(
+    product.options?.groups ?? []
+  )
+  const [newChoices, setNewChoices] = useState<Record<number, string>>({})
+
+  const addOptGroup = () => setOptGroups(prev => [...prev, { name: '', choices: [] }])
+  const removeOptGroup = (gi: number) => {
+    setOptGroups(prev => prev.filter((_, i) => i !== gi))
+    setNewChoices(prev => { const n = { ...prev }; delete n[gi]; return n })
+  }
+  const updateOptGroupName = (gi: number, name: string) =>
+    setOptGroups(prev => prev.map((g, i) => i === gi ? { ...g, name } : g))
+  const addChoice = (gi: number) => {
+    const val = (newChoices[gi] ?? '').trim()
+    if (!val) return
+    setOptGroups(prev => prev.map((g, i) => i === gi ? { ...g, choices: [...g.choices, val] } : g))
+    setNewChoices(prev => ({ ...prev, [gi]: '' }))
+  }
+  const removeChoice = (gi: number, ci: number) =>
+    setOptGroups(prev => prev.map((g, i) => i === gi ? { ...g, choices: g.choices.filter((_, j) => j !== ci) } : g))
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? [])
@@ -152,6 +176,8 @@ export default function ProductEditClient({
       images,
       features: features.filter((f) => f.trim()),
       isActive: form.isActive,
+      // Options
+      options: { groups: optGroups.filter(g => g.name.trim()) },
       // Upsell
       upsellActive: upsell.upsellActive,
       upsellPrice: upsell.upsellPrice ? parseFloat(upsell.upsellPrice) : null,
@@ -321,6 +347,58 @@ export default function ProductEditClient({
                 <Button type="button" variant="outline" onClick={addFeature} className="w-full mt-1">
                   <Plus className="w-4 h-4 mr-2" />
                   Ajouter une caractéristique
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* ── OPTIONS ── */}
+            <Card>
+              <CardHeader><CardTitle className="text-base">Options produit</CardTitle></CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-xs text-gray-500">
+                  Définissez les variantes disponibles (Version, Couleur, Taille…).
+                  Les choix seront affichés sur la page produit.
+                </p>
+                {optGroups.map((group, gi) => (
+                  <div key={gi} className="border rounded-lg p-3 space-y-3">
+                    <div className="flex gap-2 items-center">
+                      <Input
+                        placeholder="Nom du groupe (ex : Version, Couleur)"
+                        value={group.name}
+                        onChange={e => updateOptGroupName(gi, e.target.value)}
+                        className="flex-1"
+                      />
+                      <button type="button" onClick={() => removeOptGroup(gi)} className="text-red-500 hover:text-red-700 p-1">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {group.choices.map((choice, ci) => (
+                        <span key={ci} className="flex items-center gap-1 bg-gray-100 rounded-full px-2 py-1 text-sm">
+                          {choice}
+                          <button type="button" onClick={() => removeChoice(gi, ci)} className="text-gray-400 hover:text-red-500">
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Ajouter un choix…"
+                        value={newChoices[gi] ?? ''}
+                        onChange={e => setNewChoices(prev => ({ ...prev, [gi]: e.target.value }))}
+                        onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addChoice(gi))}
+                        className="flex-1"
+                      />
+                      <Button type="button" variant="outline" size="sm" onClick={() => addChoice(gi)}>
+                        <Plus className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+                <Button type="button" variant="outline" onClick={addOptGroup} className="w-full">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Ajouter un groupe d’options
                 </Button>
               </CardContent>
             </Card>

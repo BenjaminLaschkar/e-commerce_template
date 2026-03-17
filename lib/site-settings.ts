@@ -4,6 +4,7 @@
  */
 
 import { prisma } from './prisma'
+import { Prisma } from '@prisma/client'
 import type { SiteSettings } from '@prisma/client'
 
 export type { SiteSettings }
@@ -47,16 +48,27 @@ export async function getSiteSettings(): Promise<SiteSettingsWithRules> {
   if (!row) {
     // First boot: create the defaults row. Use upsert to handle race conditions
     // between concurrent requests that all see null simultaneously.
-    row = await prisma.siteSettings.upsert({
-      where: { id: 'singleton' },
-      create: {
-        id: 'singleton',
-        ...DEFAULTS,
-        shippingRules: JSON.parse(JSON.stringify(DEFAULTS.shippingRules)),
-      },
-      update: {}, // another request already created it — keep as-is
-    })
+    try {
+      row = await prisma.siteSettings.upsert({
+        where: { id: 'singleton' },
+        create: {
+          id: 'singleton',
+          ...DEFAULTS,
+          shippingRules: JSON.parse(JSON.stringify(DEFAULTS.shippingRules)),
+        },
+        update: {}, // another request already created it — keep as-is
+      })
+    } catch (e) {
+      // Another concurrent request already inserted the row (P2002 race condition)
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        row = await prisma.siteSettings.findUnique({ where: { id: 'singleton' } })
+      } else {
+        throw e
+      }
+    }
   }
+
+  if (!row) throw new Error('Failed to initialize SiteSettings')
 
   const { shippingRules, ...rest } = row
   return {

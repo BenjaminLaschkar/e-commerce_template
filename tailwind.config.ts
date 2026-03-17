@@ -51,6 +51,14 @@ const config: Config = {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
         },
+        // ── CoupleBook brand palette ─────────────────────────────────
+        brand: {
+          primary:   '#E8B4B8',  // rose poudré
+          secondary: '#F5EDE6',  // beige clair
+          accent:    '#3A3A3A',  // gris foncé (text, dark CTAs)
+          gold:      '#C9A227',  // or — premium
+          sage:      '#7A8F7B',  // vert sauge
+        },
       },
       borderRadius: {
         lg: 'var(--radius)',

@@ -1,5 +1,7 @@
 import { Metadata } from 'next'
 import { CartProvider } from '@/components/client/CartProvider'
+
+export const dynamic = 'force-dynamic'
 import { LangProvider } from '@/components/client/LangProvider'
 import { SettingsProvider } from '@/components/client/SettingsProvider'
 import { getSiteSettings } from '@/lib/site-settings'

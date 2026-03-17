@@ -40,6 +40,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (body.upsellMessage    !== undefined) data.upsellMessage    = body.upsellMessage
     if (body.upsellSendEmail  !== undefined) data.upsellSendEmail  = body.upsellSendEmail
     if (body.upsellTriggerIds !== undefined) data.upsellTriggerIds = body.upsellTriggerIds
+    if (body.options        !== undefined) data.options        = body.options
 
     const product = await prisma.product.update({
       where: { id: params.id },

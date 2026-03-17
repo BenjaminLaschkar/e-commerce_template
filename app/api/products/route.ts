@@ -23,6 +23,8 @@ const productSchema = z.object({
   upsellMessage: z.string().optional().nullable(),
   upsellSendEmail: z.boolean().default(false),
   upsellTriggerIds: z.array(z.string()).default([]),
+  // Options (versions, colours, etc.)
+  options: z.any().optional().default({}),
 })
 
 // GET /api/products

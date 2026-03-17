@@ -33,7 +33,7 @@ export default function SiteHeader({ storeName = 'Boutique', logoUrl }: Props) {
             // eslint-disable-next-line @next/next/no-img-element
             <img src={logoUrl} alt={storeName} className="h-8 w-auto object-contain" />
           ) : (
-            <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shrink-0">
+            <div className="w-8 h-8 bg-brand-accent rounded-lg flex items-center justify-center shrink-0">
               <Package className="w-4 h-4 text-white" />
             </div>
           )}
@@ -47,8 +47,8 @@ export default function SiteHeader({ storeName = 'Boutique', logoUrl }: Props) {
               key={href}
               href={href}
               className={cn(
-                'hover:text-indigo-600 transition-colors font-medium',
-                pathname === href && 'text-indigo-600'
+                'hover:text-brand-accent transition-colors font-medium',
+                pathname === href && 'text-brand-accent'
               )}
             >
               {label}
@@ -61,17 +61,17 @@ export default function SiteHeader({ storeName = 'Boutique', logoUrl }: Props) {
           {/* Lang toggle */}
           <button
             onClick={toggleLang}
-            className="hidden sm:flex items-center gap-1 text-xs text-gray-500 hover:text-indigo-600 transition-colors px-2 py-1.5 rounded-lg hover:bg-gray-50 border border-transparent hover:border-gray-200"
+            className="hidden sm:flex items-center gap-1 text-xs text-gray-500 hover:text-brand-accent transition-colors px-2 py-1.5 rounded-lg hover:bg-gray-50 border border-transparent hover:border-gray-200"
           >
             <Globe className="w-3.5 h-3.5" />
             {t.lang}
           </button>
 
           {/* Cart icon */}
-          <Link href="/cart" className="relative p-2 text-gray-600 hover:text-indigo-600 transition-colors">
+          <Link href="/cart" className="relative p-2 text-gray-600 hover:text-brand-accent transition-colors">
             <ShoppingCart className="w-5 h-5" />
             {totalItems > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 bg-indigo-600 text-white text-[10px] leading-none rounded-full w-4 h-4 flex items-center justify-center font-bold">
+              <span className="absolute -top-0.5 -right-0.5 bg-brand-accent text-white text-[10px] leading-none rounded-full w-4 h-4 flex items-center justify-center font-bold">
                 {totalItems > 9 ? '9+' : totalItems}
               </span>
             )}
@@ -79,7 +79,7 @@ export default function SiteHeader({ storeName = 'Boutique', logoUrl }: Props) {
 
           {/* Mobile hamburger */}
           <button
-            className="md:hidden p-2 text-gray-600 hover:text-indigo-600"
+            className="md:hidden p-2 text-gray-600 hover:text-brand-accent"
             onClick={() => setMenuOpen((v) => !v)}
             aria-label="Menu"
           >
@@ -99,7 +99,7 @@ export default function SiteHeader({ storeName = 'Boutique', logoUrl }: Props) {
               className={cn(
                 'block py-2.5 px-3 rounded-lg text-sm font-medium transition-colors',
                 pathname === href
-                  ? 'bg-indigo-50 text-indigo-600'
+                  ? 'bg-brand-secondary text-brand-accent'
                   : 'text-gray-700 hover:bg-gray-50'
               )}
             >
